@@ -1,0 +1,19 @@
+[Unit]
+Description=RanArch RD Installer daemon
+Documentation=https://example.invalid/ranarch
+After=network.target
+ConditionPathExists=/etc/ranarch/ranarch.conf
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ranarch-daemon
+Restart=on-failure
+RestartSec=3
+# The daemon manages the system on behalf of authorised callers.
+User=root
+Group=ranarch
+RuntimeDirectory=ranarch
+RuntimeDirectoryMode=0750
+
+[Install]
+WantedBy=multi-user.target

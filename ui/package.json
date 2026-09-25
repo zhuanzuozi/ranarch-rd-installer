@@ -1,0 +1,65 @@
+{
+  "name": "ranarch-installer-ui",
+  "private": true,
+  "version": "1.0.0",
+  "description": "RanArch Installer — .deb / .rpm 安装器的桌面前端",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build:renderer": "vite build",
+    "build:electron": "tsc -p tsconfig.electron.json && node -e \"require('fs').writeFileSync('dist-electron/package.json',JSON.stringify({type:'commonjs'}))\"",
+    "build": "npm run build:renderer && npm run build:electron",
+    "start": "npm run build && electron .",
+    "electron:dev": "npm run build:electron && concurrently \"vite\" \"wait-on tcp:127.0.0.1:5173 && VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "dist": "npm run build && electron-builder"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "concurrently": "^8.2.2",
+    "electron": "^33.0.0",
+    "electron-builder": "^24.0.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "org.ranarch.installer",
+    "productName": "RanArch Installer",
+    "directories": {
+      "output": "release"
+    },
+    "artifactName": "RanArch-Installer-${version}-${arch}.${ext}",
+    "extraResources": [
+      {
+        "from": "public/icon.png",
+        "to": "icon.png"
+      }
+    ],
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "System",
+      "icon": "public/icon.png",
+      "synopsis": "在 Arch Linux 及衍生系上直接安装 deb / rpm 包",
+      "description": "RanArch Installer 的图形前端：把 .deb / .rpm 拖进来即可安装，带签名校验、冲突与依赖检查、沙箱试装和实时终端输出。",
+      "desktop": {
+        "Comment": "安装 deb / rpm 软件包",
+        "Categories": "System;PackageManager;",
+        "StartupWMClass": "ranarch-installer-ui"
+      }
+    }
+  },
+  "author": "RanArch Project <ranarch@localhost>",
+  "homepage": "https://github.com/zhuanzuozi/ranarch-rd-installer",
+  "allowScripts": {
+    "electron@33.4.11": true
+  }
+}

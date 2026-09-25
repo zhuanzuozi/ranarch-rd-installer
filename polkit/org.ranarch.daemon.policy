@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
+
+<!--
+  RanArch RD Installer — Polkit policy.
+  Governs privileged operations offered by ranarch-daemon.
+-->
+
+<policyconfig>
+
+  <!--
+    注意：只有 launch 带 org.freedesktop.policykit.exec.path 注解。
+    pkexec 就是靠这个注解把「执行 /usr/bin/ranarch-daemon」映射到本动作上的；
+    如果多个动作都标同一个路径，pkexec 会随机命中一个，行为就不确定了。
+    下面 install / remove / manage-keys 是守护进程自己用
+    polkit_authority_check_authorization() 查的，不需要这个注解。
+  -->
+  <action id="org.ranarch.daemon.launch">
+    <description>Start the RanArch backend for this session</description>
+    <message>Authentication is required to start the RanArch backend (it installs foreign packages as root).</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/ranarch-daemon</annotate>
+  </action>
+
+  <action id="org.ranarch.daemon.install">
+    <description>Install a .deb/.rpm package via RanArch</description>
+    <message>Authentication is required to install a foreign package onto the system.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+
+  <action id="org.ranarch.daemon.remove">
+    <description>Remove a RanArch-managed package</description>
+    <message>Authentication is required to remove a RanArch-managed package.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+
+  <action id="org.ranarch.daemon.manage-keys">
+    <description>Manage the RanArch trusted GPG keyring</description>
+    <message>Authentication is required to modify the trusted keyring.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+
+</policyconfig>

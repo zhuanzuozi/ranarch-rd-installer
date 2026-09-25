@@ -1,0 +1,23 @@
+# ---- 构建产物与依赖：不进仓库 ----
+# 前端
+ui/node_modules/
+ui/dist/
+ui/dist-electron/
+ui/release/
+ui/.vite/
+# C++ 后端
+build/
+.cache/
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# ---- 可能的本地密钥 / 凭据 ----
+*.pem
+*.key
+id_rsa*
+.env
+.env.*

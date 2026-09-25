@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RANARCH INSTALLER</title>
+  <!-- 字体在 src/styles/fonts.css 里自托管（DotGothic16 / Press Start 2P / Noto Sans SC），
+       离线也能拿到像素字体，不再依赖 fonts.googleapis.com -->
+  <link rel="stylesheet" href="/src/styles/main.css">
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <div class="desktop">
+    <div class="app" id="app">
+      <!-- 标题栏 -->
+      <header class="title-bar">
+        <svg class="title-icon" viewBox="0 0 16 16">
+          <rect x="1" y="1" width="14" height="14" fill="#F0A8BC" stroke="#3A3238"/>
+          <rect x="3" y="3" width="6" height="5" fill="#3A3238"/>
+          <rect x="10" y="10" width="3" height="3" fill="#3A3238"/>
+        </svg>
+        <div class="title-text">RANARCH <em>INSTALLER</em> v1.0</div>
+        <div class="title-btns">
+          <button class="tbtn" id="btnMinimize">_</button>
+          <button class="tbtn" id="btnMaximize">□</button>
+          <button class="tbtn" id="btnClose">×</button>
+        </div>
+      </header>
+
+      <!-- 菜单栏 -->
+      <nav class="menu-bar" id="menuBar" role="menubar">
+        <div class="menu-item" data-menu="file" role="menuitem" aria-haspopup="menu" aria-expanded="false">
+          <u>文</u>件(F)
+          <div class="menu-dropdown" role="menu" hidden>
+            <button class="menu-command" role="menuitem" data-cmd="pick">
+              <span class="menu-check"></span>选择安装包…
+              <span class="menu-accel">Ctrl+O</span>
+            </button>
+            <button class="menu-command" role="menuitem" data-cmd="install-all">
+              <span class="menu-check"></span>一键安装队列
+              <span class="menu-accel">F5</span>
+            </button>
+            <button class="menu-command" role="menuitem" data-cmd="clear-queue">
+              <span class="menu-check"></span>清空队列
+            </button>
+            <div class="menu-sep" role="separator"></div>
+            <button class="menu-command" role="menuitem" data-cmd="quit">
+              <span class="menu-check"></span>退出
+              <span class="menu-accel">Alt+F4</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="menu-item" data-menu="options" role="menuitem" aria-haspopup="menu" aria-expanded="false">
+          <u>选</u>项(O)
+          <div class="menu-dropdown" role="menu" hidden>
+            <button class="menu-command" role="menuitem" data-cmd="toggle-queue">
+              <span class="menu-check">✓</span>队列面板
+              <span class="menu-accel">Ctrl+1</span>
+            </button>
+            <button class="menu-command" role="menuitem" data-cmd="toggle-terminal">
+              <span class="menu-check">✓</span>终端面板
+              <span class="menu-accel">Ctrl+2</span>
+            </button>
+            <button class="menu-command" role="menuitem" data-cmd="toggle-span">
+              <span class="menu-check">✓</span>终端横跨队列下方
+            </button>
+            <div class="menu-sep" role="separator"></div>
+            <button class="menu-command" role="menuitem" data-cmd="settings">
+              <span class="menu-check"></span>安装设置…
+              <span class="menu-accel">Ctrl+,</span>
+            </button>
+            <button class="menu-command" role="menuitem" data-cmd="reload-policy">
+              <span class="menu-check"></span>重新读取守护进程配置
+            </button>
+            <div class="menu-sep" role="separator"></div>
+            <button class="menu-command" role="menuitem" data-cmd="copy-log">
+              <span class="menu-check"></span>复制终端日志
+              <span class="menu-accel">Ctrl+Shift+C</span>
+            </button>
+            <button class="menu-command" role="menuitem" data-cmd="clear-log">
+              <span class="menu-check"></span>清空终端日志
+            </button>
+          </div>
+        </div>
+
+        <div class="menu-item" data-menu="help" role="menuitem" aria-haspopup="menu" aria-expanded="false">
+          <u>帮</u>助(H)
+          <div class="menu-dropdown" role="menu" hidden>
+            <button class="menu-command" role="menuitem" data-cmd="shortcuts">
+              <span class="menu-check"></span>快捷键一览
+            </button>
+            <button class="menu-command" role="menuitem" data-cmd="error-codes">
+              <span class="menu-check"></span>错误码对照表
+            </button>
+            <div class="menu-sep" role="separator"></div>
+            <button class="menu-command" role="menuitem" data-cmd="about">
+              <span class="menu-check"></span>关于 RANARCH INSTALLER
+            </button>
+          </div>
+        </div>
+
+        <div class="menu-right">
+          <button class="menu-toggle" id="btnQueueToggle">队列 ▶</button>
+          <button class="menu-toggle" id="btnTerminalToggle">终端 ▼</button>
+        </div>
+      </nav>
+
+      <!-- 主内容行 -->
+      <div class="main-row">
+        <!-- 设置侧栏 -->
+        <div class="settings-module" id="settingsModule" inert>
+          <div class="module-header">
+            <div class="module-title">SETTINGS.CFG</div>
+            <span class="queue-count" id="settingsCount"></span>
+            <button class="queue-collapse" id="btnSettingsCollapse" title="收起设置">◀</button>
+          </div>
+          <div class="settings-list" id="settingsList"></div>
+          <div class="settings-footer">
+            <div class="settings-note" id="settingsNote">
+              A 类随安装请求下发 · B 类由守护进程配置控制
+            </div>
+            <button class="btn95" id="btnSettingsReset">恢复默认</button>
+          </div>
+        </div>
+
+        <!-- STAGE 主区域 -->
+        <div class="stage" id="stage">
+          <!-- 设置按钮：左边缘垂直居中 -->
+          <button class="settings-btn" id="btnSettings" title="设置" aria-label="打开设置">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2">
+              <circle cx="8" cy="8" r="2.4"/>
+              <path d="M8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3"/>
+            </svg>
+            <span class="settings-badge" id="settingsBadge" hidden></span>
+          </button>
+
+          <!-- 拖放区 (默认显示) -->
+          <div class="stage-drop" id="stageDrop">
+            <div class="floppy-zone" id="dropZone">
+              <svg class="floppy-icon" width="72" height="72" viewBox="0 0 16 16">
+                <rect x="1" y="1" width="14" height="14" fill="#F0A8BC" stroke="#3A3238" stroke-width="0.5"/>
+                <rect x="3" y="1" width="8" height="5" fill="#E4DDD8" stroke="#3A3238" stroke-width="0.5"/>
+                <rect x="7" y="2" width="3" height="3" fill="#3A3238"/>
+                <rect x="3" y="9" width="10" height="6" fill="#F5F1EE" stroke="#3A3238" stroke-width="0.5"/>
+                <line x1="4" y1="11" x2="12" y2="11" stroke="#E0709A" stroke-width="0.5"/>
+                <line x1="4" y1="13" x2="12" y2="13" stroke="#E0709A" stroke-width="0.5"/>
+              </svg>
+              <div class="floppy-label">拖入安装包</div>
+              <div class="floppy-sub">.deb / .rpm<br>支持多选</div>
+            </div>
+            <button class="btn95" id="btnPickFile">选择文件...</button>
+          </div>
+
+          <!-- 进度面板 (安装时显示) -->
+          <div class="stage-progress" id="stageProgress" hidden>
+            <!-- 校验被关闭的显著警告（后端 checks_disabled 事件） -->
+            <div class="checks-warning" id="checksWarning" hidden>
+              <span class="cw-badge">!</span>
+              <span class="cw-text" id="checksWarningText"></span>
+            </div>
+
+            <div class="progress-card">
+              <div class="progress-header">
+                <span class="progress-title" id="progressTitle">正在安装</span>
+                <span class="progress-step" id="progressStep">解析</span>
+              </div>
+              <div class="progress-bar-large">
+                <div class="progress-bar-fill" id="progressBarFill"></div>
+              </div>
+              <div class="progress-info">
+                <span id="progressCurrent">0 / 0</span>
+                <span id="progressPackageName">—</span>
+                <span id="progressPercent">0%</span>
+              </div>
+            </div>
+
+            <!-- 后端实际推送的阶段序列（按后端返回渲染，不预置任何阶段） -->
+            <div class="stage-steps" id="stageSteps"></div>
+          </div>
+        </div>
+
+        <!-- 队列侧栏 -->
+        <div class="queue-module" id="queueModule" inert>
+          <div class="module-header">
+            <div class="module-title">QUEUE.SYS</div>
+            <span class="queue-count">[<span id="queueCount">0</span>]</span>
+            <button class="queue-collapse" id="btnQueueCollapse" title="收起队列">▶</button>
+          </div>
+          <div class="queue-list" id="queueList"></div>
+          <div class="done-section" id="doneSection">
+            <div class="done-header">== 已完成 [<span id="doneCount">0</span>] ==</div>
+            <div id="doneList"></div>
+          </div>
+          <div class="queue-footer">
+            <button class="btn95 primary" id="btnInstallAll">一键安装(A)</button>
+          </div>
+      </div>
+    </div>
+    <!-- /main-row -->
+      <div class="divider"></div>
+
+      <!-- 终端模块 -->
+      <div class="terminal-module" id="terminalModule" inert>
+        <div class="terminal-header">
+          <button class="terminal-tab active" data-tab="log">LOG.TXT</button>
+          <button class="terminal-tab" data-tab="tty">TTY</button>
+          <button class="terminal-toggle" id="btnTerminalCollapse" title="收起终端">▲</button>
+        </div>
+        <div class="steps-strip" id="stepsStrip"></div>
+        <div class="terminal-body" id="terminalBody"></div>
+        <pre class="terminal-body pty-body" id="ptyBody" hidden></pre>
+      </div>
+
+      <!-- 状态栏 -->
+      <footer class="status-bar">
+        <span class="status-cell conn-cell" id="statusConn">
+          <span class="conn-dot" id="connDot"></span>
+          <span id="connText">连接中...</span>
+        </span>
+        <span class="status-cell">队列: <b id="statusQueue">0</b></span>
+        <span class="status-cell" id="statusTime">SYSTEM_TIME: --:--:--</span>
+        <div class="cpu-cell" title="CPU 使用率（/proc/stat 两次采样差值）">
+          <span>CPU:</span>
+          <div class="cpu-bar"><div class="cpu-fill" id="cpuFill"></div></div>
+          <span id="cpuText">--%</span>
+        </div>
+        <div class="mem-cell" id="memCell" title="内存占用率">
+          <span>MEM:</span>
+          <div class="mem-bar"><div class="mem-fill" id="memFill"></div></div>
+          <span id="memText">--%</span>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- 通用信息弹层（帮助菜单：快捷键 / 错误码对照 / 关于） -->
+  <div class="error-modal-overlay" id="infoOverlay" hidden>
+    <div class="error-modal">
+      <div class="error-modal-header">
+        <span class="error-modal-title" id="infoTitle">信息</span>
+        <button class="tbtn" id="btnCloseInfo">×</button>
+      </div>
+      <div class="error-modal-body" id="infoBody"></div>
+    </div>
+  </div>
+
+  <!-- 错误详情弹层 -->
+  <div class="error-modal-overlay" id="errorModalOverlay" hidden>
+    <div class="error-modal">
+      <div class="error-modal-header">
+        <span class="error-modal-title">安装失败</span>
+        <button class="tbtn" id="btnCloseError">×</button>
+      </div>
+      <div class="error-modal-body" id="errorModalBody"></div>
+    </div>
+  </div>
+
+  <!-- 依赖决策弹层（后端 prompt 事件；守护进程正在阻塞等待答复） -->
+  <div class="prompt-modal-overlay" id="promptOverlay" hidden>
+    <div class="prompt-modal" role="dialog" aria-modal="true" aria-labelledby="promptTitle">
+      <div class="prompt-modal-header">
+        <span class="prompt-modal-title" id="promptTitle">依赖未满足</span>
+        <span class="prompt-countdown" id="promptCountdown"></span>
+      </div>
+      <div class="prompt-modal-body" id="promptBody"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# /etc/ranarch/ranarch.conf — default configuration for RanArch RD Installer.
+# Lines starting with # or ; are comments. Unknown keys are ignored.
+
+[paths]
+staging_dir        = /var/lib/ranarch/staging
+db_path            = /var/lib/ranarch/ranarch.db
+dep_map_path       = /etc/ranarch/dep_map.csv
+keyring_dir        = /usr/share/ranarch/keyring
+runtime_keyring_dir= /var/lib/ranarch/keyring
+log_file           = /var/log/ranarch/ranarch.log
+socket_path        = /run/ranarch/ranarch.sock
+
+[log]
+level              = info        # trace | debug | info | warn | error
+
+[signature]
+policy             = warn        # strict | warn | ignore
+
+[sandbox]
+trial_install      = true        # pre-install in a bubblewrap overlay before touching /
+backend            = bwrap       # bwrap | nspawn | none
+
+[deps]
+default_action     = ask         # ask | skip | abort (when a dep has no mapping)
+
+[pacman]
+bin                = /usr/bin/pacman
