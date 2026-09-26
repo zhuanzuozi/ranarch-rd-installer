@@ -5,6 +5,8 @@ ui/dist/
 ui/dist-electron/
 ui/release/
 ui/.vite/
+# 后端（由 scripts/stage-backend.sh 生成，随 AppImage 一起打包）
+ui/backend/
 # C++ 后端
 build/
 .cache/

@@ -108,6 +108,15 @@ add_executable(ranarchctl src/cli/ranarchctl.cpp)
 target_include_directories(ranarchctl PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(ranarchctl PRIVATE ranarch)
 
+# 让这两个可执行文件在**任何**布局下都能找到 libranarch.so，而不是只认 /usr/lib：
+#     /usr/bin/ranarch-daemon            -> /usr/lib/libranarch.so
+#     <绿色目录>/bin/ranarch-daemon      -> <绿色目录>/lib/libranarch.so
+# 打包进 AppImage（或任何自包含目录）时就不必依赖系统库搜索路径。
+# 不加这一条的话，cmake --install 会把构建目录的 rpath 清成空串，
+# 二进制离开 /usr 就跑不起来。
+set_target_properties(ranarch-daemon ranarchctl PROPERTIES
+    INSTALL_RPATH "$ORIGIN/../lib")
+
 # ----------------------------------------------------------------------------
 # Install layout
 # ----------------------------------------------------------------------------

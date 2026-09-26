@@ -26,7 +26,7 @@ Arch 用的是 pacman 和 `.pkg.tar.zst`，外来的 deb / rpm 本来装不上�
 
 ```
 ui/                     Electron 前端（Vite + TypeScript，无框架）
-  ├ electron/main.ts      主进程：多窗口编排、/proc 采样、socket 桥
+  ├ electron/main.ts      主进程：多窗口编排、/proc 采样、socket 桥、后端生命周期
   └ src/                  渲染层：主界面恒定 600×600，队列与控制台是
                           钉在共享边上的独立透明窗口，靠 CSS transform 滑入
 src/core/               libranarch.so —— 解析、依赖、冲突、签名、沙箱、PTY、DB
@@ -35,11 +35,32 @@ src/cli/                ranarchctl —— 命令行客户端
 data/                   配置样例、依赖映射表
 polkit/                 polkit 策略
 systemd/                守护进程 unit
-scripts/                桌面快捷方式启动器
+scripts/                桌面快捷方式启动器、打包与安装后端
 tests/                  ctest 用例
 ```
 
 前端与守护进程之间是 Unix socket 上的 NDJSON（4 字节长度前缀 + JSON）。请求类型 `list` / `info` / `install` / `remove`；事件类型 `session_start` / `step` / `progress` / `log` / `pty_data` / `error` / `done`。
+
+### 前后端是「两个进程、一个文件」
+
+后端必须以 root 跑（要往 `/` 写文件、要调 pacman），前端绝不能提权，所以两边是
+两个进程 + 一个 Unix socket。但**分发形态**是合并的：后端产物（守护进程、CLI、
+`libranarch.so`、polkit 策略、systemd unit、默认配置）由 `scripts/stage-backend.sh`
+整理进 `ui/backend/`，再由 electron-builder 作为 `extraResources` 打进 AppImage。
+用户只需要下载一个 AppImage。
+
+启动时 [ui/electron/main.ts](ui/electron/main.ts) 按下面的顺序把后端准备好：
+
+1. 系统守护进程可用（`/run/ranarch/ranarch.sock` 能连）→ 直接用，不插手；
+2. 本会话已有会话级后端 → 复用；
+3. 否则：`/usr/bin/ranarch-daemon` 不存在时，先用一次 pkexec 跑随包的
+   `install-backend.sh` 把它装进 `/usr`；然后生成会话配置，用 pkexec 拉起
+   `--exit-with-pid=<前端 pid> --socket-owner=<当前用户>` 的会话级后端
+   （socket 建在 `$XDG_RUNTIME_DIR`，属主是当前用户、权限 `0600`；前端退出后端即结束）。
+
+pkexec 的授权靠 polkit 动作里的 `exec.path` 精确匹配，因此：启动后端命中我们自己的
+`org.ranarch.daemon.launch`（认证框是品牌文案）；而首次安装那一次跑的是 AppImage
+挂载点里的脚本，匹配不到我们的动作，走系统通用的 `org.freedesktop.policykit.exec`。
 
 ## 依赖
 
@@ -59,26 +80,47 @@ cmake --build build -j"$(nproc)"
 ctest --test-dir build --output-on-failure     # 7 个用例
 ```
 
-打包前端（产出 `ui/release/RanArch-Installer-<版本>-x86_64.AppImage`）：
+打包前端（**会把后端一起打进去**，产出 `ui/release/RanArch-Installer-<版本>-x86_64.AppImage`）：
 
 ```bash
-cd ui && npm install && npx electron-builder --linux AppImage
+cd ui && npm install && npm run dist:appimage
 ```
+
+`npm run dist:appimage` = 整理后端到 `ui/backend/` → 构建渲染层与主进程 → electron-builder 出 AppImage。
+**不要**直接 `npx electron-builder`，那样打出来的 AppImage 里没有后端。
+（`npm run dist` 会额外尝试打 deb，见下方「已知限制」。）
 
 ## 安装系统组件（可选）
 
-想让后端常驻、或走系统级 socket，就把守护进程装进系统：
+**正常情况下不需要这一步** —— 直接跑 AppImage，它会自己在首次运行时把随包的后端装进
+`/usr`（弹一次 pkexec 认证框）。想手动做等价的事：
 
 ```bash
-sudo cmake --install build          # 装到 /usr/{bin,lib,share}、/etc/ranarch、polkit 策略、systemd unit
+bash scripts/stage-backend.sh              # 整理后端到 ui/backend/
+sudo bash ui/backend/install-backend.sh    # 装进 /usr（幂等，可重复跑）
+```
+
+`install-backend.sh` 会装守护进程 / CLI / `libranarch.so`、polkit 策略、systemd unit，
+创建 `ranarch` 系统组与运行期目录，并在 `/etc/ranarch/ranarch.conf` 缺失时生成它。
+**它不 enable 常驻服务**：前端走的是会话级后端，常驻是另一条路，要开自己开：
+
+```bash
 sudo systemctl enable --now ranarch-daemon
 ```
 
-不装也能用：桌面快捷方式（`scripts/dev-launch.sh`）会用 `pkexec` 现拉一个**会话级后端**，socket 建在 `$XDG_RUNTIME_DIR` 下并归当前用户所有（`0600`），前端退出它就自己结束。
+也可以走 CMake 自己的安装规则（不含运行期目录与系统组）：
+
+```bash
+sudo cmake --install build
+```
 
 ## 用法
 
-图形界面：双击桌面快捷方式，或直接运行 AppImage。把 `.deb` / `.rpm` 拖进中间的六边形，点安装；首次会弹 polkit 认证框，之后一段时间内不再重复询问。
+图形界面：双击桌面快捷方式，或直接运行 AppImage。把 `.deb` / `.rpm` 拖进中间的六边形，点安装；装包前会弹 polkit 认证框。
+
+第一次运行会连后端一起准备：先弹一次框把后端装进 `/usr`，再弹一次框拉起会话级后端。
+之后每次启动弹一次（拉后端），关掉窗口后端跟着结束。想一点系统目录都不动，就先
+`sudo bash ui/backend/install-backend.sh` 装好，或者直接改用常驻服务。
 
 命令行：
 
@@ -102,7 +144,8 @@ ranarchctl info <session_id>
 ## 已知限制
 
 - **不执行包自带的维护脚本**（`postinst` / `prerm` / `%post` 等）。deb 的 control 成员会被解析，但脚本内容不会运行，所以依赖脚本副作用的包装完可能还需要手动收尾。
-- 前端 `npm run dist` 里的 deb 打包目标需要 `libxcrypt-compat`（electron-builder 自带的 fpm 依赖 `libcrypt.so.1`）。只出 AppImage 用上面那条 `electron-builder --linux AppImage`。
+- **每次启动都要授权一次**。KDE 把应用放在 `app-*.scope` 里，这在 logind 看来不属于任何会话（`logind.GetSessionByPID` 直接报 not in any session），polkit 只能套用动作的 `allow_any` 规则，认证结果也就没法按会话缓存。同理，首次安装后端那一次走的是系统通用动作，认证框文案是通用的。
+- 前端 `npm run dist` 里的 deb 打包目标需要 `libxcrypt-compat`（electron-builder 自带的 fpm 依赖 `libcrypt.so.1`）。只出 AppImage 用 `npm run dist:appimage` 即可，这也是推荐方式。
 
 ## 许可
 

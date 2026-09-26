@@ -12,7 +12,9 @@
     "build": "npm run build:renderer && npm run build:electron",
     "start": "npm run build && electron .",
     "electron:dev": "npm run build:electron && concurrently \"vite\" \"wait-on tcp:127.0.0.1:5173 && VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
-    "dist": "npm run build && electron-builder"
+    "stage:backend": "bash ../scripts/stage-backend.sh",
+    "dist": "npm run stage:backend && npm run build && electron-builder",
+    "dist:appimage": "npm run stage:backend && npm run build && electron-builder --linux AppImage"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -34,6 +36,10 @@
       {
         "from": "public/icon.png",
         "to": "icon.png"
+      },
+      {
+        "from": "backend",
+        "to": "backend"
       }
     ],
     "files": [

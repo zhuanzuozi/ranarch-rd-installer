@@ -24,10 +24,12 @@
 //   窗口全程不动、不改尺寸、不改透明度，因此也没有逐帧抖动、黑线或残影。
 //   唯一的窗口尺寸变化是终端高度的可用空间自适应（见 panelSize）。
 //
-// 不 spawn 守护进程：真实场景下 ranarch-daemon 由 systemd 以 root 运行
-// （见 systemd/ranarch-daemon.service），GUI 仅作为客户端连接。
+// 后端（ranarch-daemon）的启动由本进程负责，见下方「后端生命周期」一节：
+// 若系统守护进程已在跑就直接连；否则必要时先一次性把它装进 /usr，
+// 再用 pkexec 拉起一个「前端退出它就退出」的会话级实例。
 import { app, BrowserWindow, ipcMain, dialog, screen } from 'electron';
 import { createConnection, Socket } from 'net';
+import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 
@@ -36,6 +38,51 @@ import fs from 'fs';
 const DEFAULT_SOCKET = '/run/ranarch/ranarch.sock';
 const DEFAULT_CONFIG = '/etc/ranarch/ranarch.conf';
 const MAX_FRAME = 10 * 1024 * 1024; // 与后端 recv_message 的 sanity 上限一致
+
+// ---------- 后端路径 ----------
+//
+// 系统守护进程走 /run/ranarch/ranarch.sock（root:ranarch 0750，需要用户在
+// ranarch 组里）；会话级后端把 socket 建在用户的 runtime 目录下，属主是当前
+// 用户、权限 0600，只有本人能连。
+
+/** 随包后端产物的目录：打包后是 resources/backend，开发时是仓库里的 ui/backend */
+const BACKEND_DIR = app.isPackaged
+  ? path.join(process.resourcesPath, 'backend')
+  : path.join(__dirname, '../backend');
+
+const MY_UID = process.getuid?.() ?? 0;
+
+function runtimeDir(): string {
+  return process.env.XDG_RUNTIME_DIR || `/tmp/ranarch-session-${MY_UID}`;
+}
+
+const SESSION_SOCK = path.join(runtimeDir(), 'ranarch.sock');
+const SESSION_CONF = path.join(runtimeDir(), 'ranarch-session.conf');
+const SESSION_LOG = path.join(runtimeDir(), 'ranarch-session.log');
+
+/**
+ * socket 是否「真能用」：不只是存在，还得是 socket 且我们可读写。
+ * 只看存在会踩坑 —— 比如上一版后端留下的 root:root 0755 的僵尸 socket，
+ * 看着在、其实连不上。
+ */
+function socketUsable(p: string): boolean {
+  try {
+    if (!fs.statSync(p).isSocket()) return false;
+    fs.accessSync(p, fs.constants.R_OK | fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 后端启动过程中的当前动作（如「首次运行：正在安装后端…」）。
+ *
+ * 连接状态广播里会把它当作 detail 带上：客户端自己的状态变化只会说
+ * 「connecting / unable to connect」，而拉起后端这段时间恰恰是最需要
+ * 告诉用户「它在干什么、为什么弹了认证框」的时候。
+ */
+let backendNote = '';
 
 type ConnState = 'connecting' | 'connected' | 'disconnected';
 
@@ -97,9 +144,15 @@ function oneOf<T extends string>(v: string | undefined, allowed: readonly T[], d
   return (allowed as readonly string[]).includes(s) ? (s as T) : dflt;
 }
 
-/** 配置文件路径：RANARCH_CONFIG 环境变量优先（开发/测试用） */
+/**
+ * 配置文件路径，优先级：
+ *   1. RANARCH_CONFIG 环境变量（开发/测试）
+ *   2. 系统守护进程可用 → /etc/ranarch/ranarch.conf
+ *   3. 否则 → 本会话的会话级配置（由 writeSessionConfig 生成，与会话级后端一致）
+ */
 function resolveConfigPath(): string {
-  return process.env.RANARCH_CONFIG || DEFAULT_CONFIG;
+  if (process.env.RANARCH_CONFIG) return process.env.RANARCH_CONFIG;
+  return socketUsable(DEFAULT_SOCKET) ? DEFAULT_CONFIG : SESSION_CONF;
 }
 
 // ---------- 系统占用（状态栏 CPU / 内存） ----------
@@ -208,19 +261,21 @@ function readDaemonPolicy(): DaemonPolicy {
 /**
  * 解析 socket 路径，优先级：
  *   1. RANARCH_SOCKET 环境变量（开发/测试）
- *   2. 配置文件 [paths] socket_path（RANARCH_CONFIG 可覆盖配置文件位置）
- *   3. 默认 /run/ranarch/ranarch.sock
+ *   2. 系统配置里 [paths] socket_path 指向的 socket（默认 /run/ranarch/ranarch.sock）
+ *      —— 只有它真能连上才算数
+ *   3. 否则 → 会话级后端的 socket（由 ensureBackend 负责把后端拉起来）
  */
 function resolveSocketPath(): string {
   if (process.env.RANARCH_SOCKET) return process.env.RANARCH_SOCKET;
   try {
-    const ini = parseIni(fs.readFileSync(resolveConfigPath(), 'utf-8'));
+    const ini = parseIni(fs.readFileSync(DEFAULT_CONFIG, 'utf-8'));
     const v = ini.paths?.socket_path;
-    if (v) return v;
+    if (v && socketUsable(v)) return v;
   } catch {
-    // 配置文件不存在或不可读 —— 使用默认路径
+    // 配置不存在或不可读 —— 退到默认路径判断
   }
-  return DEFAULT_SOCKET;
+  if (socketUsable(DEFAULT_SOCKET)) return DEFAULT_SOCKET;
+  return SESSION_SOCK;
 }
 
 // ---------- IPC 客户端 ----------
@@ -494,10 +549,161 @@ function ensureClient(): IpcClient {
     client = new IpcClient(
       socketPath,
       (msg) => broadcast(msg),
-      (state, detail) => broadcast({ type: 'conn', state, socketPath, detail }),
+      // 客户端自己的 detail（连接失败原因等）优先；没有的时候补上「后端正在
+      // 安装 / 正在启动」这类进度说明，否则用户在认证框那段时间里什么都看不到
+      (state, detail) =>
+        broadcast({
+          type: 'conn',
+          state,
+          socketPath,
+          detail: detail || (state === 'connected' ? '' : backendNote),
+        }),
     );
   }
   return client;
+}
+
+// ---------- 后端生命周期 ----------
+//
+// 后端必须以 root 运行（要往 / 里写文件、要调 pacman），前端绝不能提权，
+// 所以「前后端合并」指的是**分发形态**合成了一个文件：后端产物就躺在
+// AppImage 的 resources/backend/ 里（见 scripts/stage-backend.sh），
+// 用户只需要下载一个 AppImage，不必再自己 cmake --install。
+//
+// 启动逻辑按优先级：
+//   1. 系统守护进程可用 → 什么都不做，直接连
+//   2. 本会话已有会话级后端 → 什么都不做，直接连
+//   3. 否则：
+//      a. /usr/bin/ranarch-daemon 不存在 → 先用 pkexec 跑随包的安装脚本（一次性）
+//      b. 生成会话配置，用 pkexec 拉起会话级后端
+//         （--exit-with-pid 盯住前端进程、--socket-owner 把 socket 交给当前用户）
+//
+// pkexec 的授权靠 polkit 动作里的 exec.path 精确匹配，所以：
+//   - 启动后端（/usr/bin/ranarch-daemon）命中我们自己的
+//     org.ranarch.daemon.launch，认证框是品牌文案；
+//   - 首次安装那一次跑的是 AppImage 挂载点里的脚本，匹配不到我们的动作，
+//     走系统通用的 org.freedesktop.policykit.exec，文案是通用的。
+
+/** 用 pkexec 跑一个程序，等它结束；退出码 126 表示用户取消了认证 */
+function runPkexec(args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('pkexec', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderr = '';
+    child.stdout?.on('data', (d: Buffer) => process.stdout.write(d));
+    child.stderr?.on('data', (d: Buffer) => {
+      const text = d.toString();
+      stderr += text;
+      process.stderr.write(text);
+    });
+    child.on('error', (err) => reject(new Error(`无法执行 pkexec：${err.message}`)));
+    child.on('close', (code) => {
+      if (code === 0) return resolve();
+      if (code === 126) return reject(new Error('认证被取消或未获授权'));
+      reject(new Error(stderr.trim().split('\n').pop() || `pkexec 退出码 ${code}`));
+    });
+  });
+}
+
+/**
+ * 一次性把随包的后端装进 /usr（守护进程 / CLI / libranarch / polkit 策略 /
+ * systemd unit / 默认配置 / 运行期目录）。幂等，可以重复跑。
+ */
+async function installBackend(): Promise<void> {
+  const script = path.join(BACKEND_DIR, 'install-backend.sh');
+  if (!fs.existsSync(script)) {
+    throw new Error(`随包后端不完整，缺少 ${script} —— 请先用 npm run stage:backend 打包`);
+  }
+  // 用 bash 读脚本，不依赖脚本自身的执行位（打包过程可能会掉权限位）
+  await runPkexec(['/usr/bin/bash', script]);
+}
+
+/**
+ * 生成会话级配置：以系统配置为底（这样装包路径是真实的），只把 socket 和
+ * 日志挪到本会话目录，避免和系统守护进程抢文件。
+ */
+function writeSessionConfig(): void {
+  const bundledExample = path.join(BACKEND_DIR, 'etc/ranarch.conf.example');
+  const base = fs.existsSync(DEFAULT_CONFIG) ? DEFAULT_CONFIG : bundledExample;
+  const text = fs
+    .readFileSync(base, 'utf-8')
+    .replace(/^(\s*socket_path\s*=).*$/m, `$1 ${SESSION_SOCK}`)
+    .replace(/^(\s*log_file\s*=).*$/m, `$1 ${SESSION_LOG}`);
+  fs.mkdirSync(path.dirname(SESSION_CONF), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(SESSION_CONF, text, { mode: 0o600 });
+}
+
+/**
+ * 拉会话级后端。pkexec 会一直等到守护进程退出，所以这里不 await ——
+ * 守护进程盯着前端 pid（--exit-with-pid），前端一退它自己就结束。
+ */
+function spawnSessionDaemon(): void {
+  const child = spawn(
+    'pkexec',
+    [
+      '/usr/bin/ranarch-daemon',
+      '--config',
+      SESSION_CONF,
+      '-f',
+      `--exit-with-pid=${process.pid}`,
+      `--socket-owner=${MY_UID}`,
+    ],
+    { stdio: 'ignore', detached: true },
+  );
+  child.on('error', (err) => {
+    backendNote = `拉起后端失败：${err.message}`;
+  });
+  child.unref();
+}
+
+/** 等 socket 就绪（pkexec 要等用户输密码，所以给得宽一点） */
+async function waitForSocket(sock: string, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (socketUsable(sock)) return true;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  return socketUsable(sock);
+}
+
+let backendReady = false; // 只尝试拉起一次，避免反复弹认证框
+
+/**
+ * 确保后端在跑。失败不阻塞界面：客户端本来就会一直重连，用户接好认证后
+ * 后端起来就能连上。返回 socket 路径。
+ */
+async function ensureBackend(): Promise<string> {
+  // 开发/测试模式由外部指定，不插手
+  if (process.env.RANARCH_SOCKET) return resolveSocketPath();
+  if (backendReady) return resolveSocketPath();
+
+  if (socketUsable(DEFAULT_SOCKET) || socketUsable(SESSION_SOCK)) {
+    backendReady = true;
+    return resolveSocketPath();
+  }
+
+  const note = (text: string) => {
+    backendNote = text;
+    broadcast({ type: 'conn', state: 'connecting', socketPath: SESSION_SOCK, detail: text });
+  };
+
+  try {
+    if (!fs.existsSync('/usr/bin/ranarch-daemon')) {
+      note('首次运行：正在安装后端（需要授权）…');
+      await installBackend();
+    }
+    note('正在启动后端（需要授权）…');
+    writeSessionConfig();
+    spawnSessionDaemon();
+    if (await waitForSocket(SESSION_SOCK, 30_000)) {
+      backendNote = '';
+      backendReady = true;
+    } else {
+      note('后端启动超时 —— 认证是否被取消了？');
+    }
+  } catch (err) {
+    note(`后端启动失败：${(err as Error).message}`);
+  }
+  return resolveSocketPath();
 }
 
 // ---------- 窗口 ----------
@@ -980,7 +1186,10 @@ ipcMain.on('ranarch:command', (ev, cmd: unknown) => {
 
 app.whenReady().then(() => {
   createWindow();
+  // 先连上（连不上会自己重试），同时把后端拉起来 —— 两条线并行，
+  // 后端就绪后重连自然成功
   ensureClient().start();
+  void ensureBackend();
 });
 
 app.on('window-all-closed', () => {
