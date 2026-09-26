@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — libalpm bridge implementation.
 #include "alpm_bridge.h"
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — install session state machine.
 //
 // Each install request gets a unique session_id. The session tracks the

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // Integration test: exercises the full install pipeline end-to-end.
 // Uses a dry-run install (no filesystem side effects) + direct Extractor
 // test in a temp directory + DB add/list/remove cycle.

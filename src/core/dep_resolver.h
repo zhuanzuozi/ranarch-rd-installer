@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — dependency resolver.
 //
 // Takes a list of parsed Dependencies (from a .deb/.rpm) and resolves each

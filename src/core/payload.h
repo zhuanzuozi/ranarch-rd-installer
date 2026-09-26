@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — shared payload streaming primitives.
 //
 // Both the .deb and .rpm parsers need to walk their payload (tar / cpio)

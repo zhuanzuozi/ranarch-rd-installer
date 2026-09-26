@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — 特权操作的授权检查（polkit）。
 //
 // 守护进程以 root 运行，任何会改动系统的请求（安装 / 卸载 / 管理信任密钥）都必须

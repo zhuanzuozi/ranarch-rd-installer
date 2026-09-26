@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — configuration loaded from /etc/ranarch/ranarch.conf.
 #pragma once
 

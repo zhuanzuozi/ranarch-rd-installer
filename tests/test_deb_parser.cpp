@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // Minimal self-contained test runner for the deb_parser module.
 // Builds a tiny .deb in-memory using libarchive's write API, then verifies the
 // parser extracts the expected metadata, file entries, and symlinks.

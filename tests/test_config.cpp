@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // Minimal self-contained test runner for the config module (no external test
 // framework dependency). Returns 0 on success, non-zero on first failure.
 #include "core/config.h"

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — IPC protocol helpers (NDJSON over Unix socket).
 //
 // Framing: each message is a 4-byte big-endian length prefix + UTF-8 JSON.

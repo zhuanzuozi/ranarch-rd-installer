@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // ranarch-daemon — main entry point.
 //
 // Initializes config, logger, DB, alpm, keyring, dep_map, installer, and the

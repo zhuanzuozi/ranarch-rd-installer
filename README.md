@@ -149,4 +149,8 @@ ranarchctl info <session_id>
 
 ## 许可
 
-GPL-3.0-or-later —— 各源码文件头部的 SPDX 标识为准。
+MIT，见 [LICENSE](LICENSE)；各源码文件头部有对应的 SPDX 标识。
+
+打包进 AppImage 的自托管字体（Noto Sans SC、DotGothic16、Press Start 2P）各自遵循
+SIL Open Font License 1.1，不随本项目的 MIT 授权。另外 AppImage 内含 Electron /
+Chromium 及其第三方组件，其许可证见构建产物里的 `LICENSES.chromium.html`。

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — libalpm bridge for querying the local pacman DB.
 //
 // Wraps libalpm to answer: "is package X installed?" and "what files does

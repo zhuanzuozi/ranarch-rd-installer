@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — file extractor (staging → atomic rename).
 //
 // Writes package file entries to the target root with path-traversal

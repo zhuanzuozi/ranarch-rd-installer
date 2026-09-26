@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // Minimal self-contained test runner for dep_map + dep_resolver + alpm_bridge.
 #include "core/alpm_bridge.h"
 #include "core/db.h"

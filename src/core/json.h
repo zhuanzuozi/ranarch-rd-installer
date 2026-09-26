@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — minimal vendored JSON value type + parser + serializer.
 //
 // Avoids an nlohmann-json dependency. Supports null/bool/int/double/string/

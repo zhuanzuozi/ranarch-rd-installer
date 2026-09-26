@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — deb/rpm → Arch package name mapping table impl.
 #include "dep_map.h"
 

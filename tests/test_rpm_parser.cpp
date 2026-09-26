@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // Minimal self-contained test runner for the rpm_parser module.
 // Builds a tiny .rpm in-memory (Lead + Signature Header + Header + cpio.gz
 // payload) and verifies the parser extracts metadata, deps, and files.

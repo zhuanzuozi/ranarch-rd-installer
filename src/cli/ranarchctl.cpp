@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // ranarchctl — CLI client for the RanArch RD Installer daemon.
 //
 // Connects to the daemon's Unix socket and sends requests. Renders install

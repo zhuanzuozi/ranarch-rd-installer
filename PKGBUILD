@@ -7,7 +7,7 @@ pkgrel=1
 pkgdesc="Direct .deb/.rpm binary package installer for Arch Linux and derivatives"
 arch=('x86_64' 'aarch64')
 url="https://github.com/ranarch/ranarch-rd-installer"
-license=('GPL-3.0-or-later')
+license=('MIT')
 depends=(
     'libarchive'      # ar/tar/cpio extraction
     'sqlite'          # tracking database

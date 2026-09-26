@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // Minimal self-contained test runner for the sig_verifier + keyring modules.
 // Uses the `gpg` command-line tool to generate a throwaway key, sign test
 // data, and export the public key. Verification is done through the

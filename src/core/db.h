@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — SQLite-backed tracking database.
 //
 // Owns the package / file / dep-override / trusted-key tables. All access is

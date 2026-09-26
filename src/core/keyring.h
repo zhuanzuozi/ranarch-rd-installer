@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — trusted GPG keyring management.
 //
 // Manages a temporary GnuPG home directory containing the public keys

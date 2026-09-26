@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
 // RanArch RD Installer — GPG signature verification.
 //
 // Uses gpgme to verify detached signatures on .deb and .rpm packages.
